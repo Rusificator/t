@@ -1,42 +1,48 @@
-int split(int a[], int left, int right) {
-    int pivot = a[right];          
-    int i = left - 1;               
-    for (int j = left; j < right; j++) {
+//Задача №6 Реализовать сортировку массива методом быстрой сортировки
+#include <iostream>
+#include <omp.h>
+using namespace std;
+
+
+int s(int a[], int l, int r) {
+    int pivot = a[r];
+    int i = l - 1;
+    for (int j = l; j < r; j++) {
         if (a[j] <= pivot) {
             i++;
-            // обмен a[i] и a[j]
+            
             int t = a[i];
             a[i] = a[j];
             a[j] = t;
         }
     }
-    
+
     int t = a[i + 1];
-    a[i + 1] = a[right];
-    a[right] = t;
-    return i + 1;                   
+    a[i + 1] = a[r];
+    a[r] = t;
+    return i + 1;
 }
 
 
-void qsort(int a[], int left, int right) {
-    if (left < right) {
-        int p = split(a, left, right);
+void qsort(int a[], int l, int r) {
+    if (l < r) {
+        int p = s(a, l, r);
 
-        
-        #pragma omp task shared(a)
-        qsort(a, left, p - 1);
-        #pragma omp task shared(a)
-        qsort(a, p + 1, right);
 
-        #pragma omp taskwait   
+#pragma omp task shared(a)
+        qsort(a, l, p - 1);
+#pragma omp task shared(a)
+        qsort(a, p + 1, r);
+
+#pragma omp taskwait   
     }
 }
 
 
 void qsort_parallel(int a[], int n) {
-    #pragma omp parallel
+#pragma omp parallel
     {
-        #pragma omp single
+#pragma omp single
         qsort(a, 0, n - 1);
     }
 }
@@ -49,30 +55,30 @@ bool sorted(int a[], int n) {
 }
 
 int main() {
-    setlocale(LC_ALL, "Rus");  
+    setlocale(LC_ALL, "Rus");
 
-    const int N = 100000;
+    int N = 100000;
     int* a = new int[N];
-    int* b = new int[N];          
+    int* b = new int[N];
 
-    
+
     unsigned seed = 12345;
     for (int i = 0; i < N; i++) {
-        seed = (1103515245 * seed + 12345) & 0x7fffffff;
+        seed = (1103515245 * seed + 12345);
         a[i] = seed % 100000;
         b[i] = a[i];
     }
 
     cout << "Размер массива: " << N << "\n";
 
-    
+
     double t = omp_get_wtime();
-    qsort(a, 0, N - 1);             
+    qsort(a, 0, N - 1);
     t = omp_get_wtime() - t;
     cout << "Последовательно: " << t << " с\n";
     cout << "Отсортирован? " << (sorted(a, N) ? "да" : "нет") << "\n";
 
-    
+
     t = omp_get_wtime();
     qsort_parallel(b, N);
     t = omp_get_wtime() - t;
@@ -82,3 +88,4 @@ int main() {
     delete[] a;
     delete[] b;
     return 0;
+}
