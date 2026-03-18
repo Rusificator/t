@@ -1,0 +1,88 @@
+#include <iostream>
+#include <omp.h>
+
+// Разделение массива (схема Ломуто)
+int partition(int* arr, int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+    for (int j = low; j < high; ++j) {
+        if (arr[j] <= pivot) {
+            ++i;
+            int tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+    }
+    int tmp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = tmp;
+    return i + 1;
+}
+
+// Рекурсивная быстрая сортировка с задачами OpenMP
+void quickSort(int* arr, int low, int high) {
+    if (low < high) {
+        int pi = partition(arr, low, high);
+
+        // Порог: создаём задачи только для достаточно больших частей
+        const int THRESHOLD = 10000;
+
+        #pragma omp task shared(arr) if(high - low > THRESHOLD)
+        quickSort(arr, low, pi - 1);
+
+        #pragma omp task shared(arr) if(high - low > THRESHOLD)
+        quickSort(arr, pi + 1, high);
+
+        #pragma omp taskwait   // дожидаемся выполнения обеих задач
+    }
+}
+
+// Запуск параллельной сортировки (одна нить начинает, остальные подключаются)
+void parallelQuickSort(int* arr, int n) {
+    #pragma omp parallel
+    {
+        #pragma omp single
+        quickSort(arr, 0, n - 1);
+    }
+}
+
+// Проверка упорядоченности массива
+bool isSorted(int* arr, int n) {
+    for (int i = 1; i < n; ++i)
+        if (arr[i] < arr[i - 1]) return false;
+    return true;
+}
+
+int main() {
+    const int N = 100000;                 // размер массива
+    int* arr  = new int[N];                // оригинал
+    int* copy = new int[N];                // копия для параллельной сортировки
+
+    // Заполняем массив псевдослучайными числами (собственный генератор)
+    unsigned seed = 12345;
+    for (int i = 0; i < N; ++i) {
+        seed = (1103515245 * seed + 12345) & 0x7fffffff;
+        arr[i] = seed % 100000;
+        copy[i] = arr[i];
+    }
+
+    std::cout << "Размер массива: " << N << "\n";
+
+    // ----- последовательная версия -----
+    double start = omp_get_wtime();
+    quickSort(arr, 0, N - 1);               // вне parallel область – задачи игнорируются
+    double end = omp_get_wtime();
+    std::cout << "Последовательно: " << end - start << " с\n";
+    std::cout << "Отсортирован? " << (isSorted(arr, N) ? "да" : "нет") << "\n";
+
+    // ----- параллельная версия -----
+    start = omp_get_wtime();
+    parallelQuickSort(copy, N);
+    end = omp_get_wtime();
+    std::cout << "Параллельно:     " << end - start << " с\n";
+    std::cout << "Отсортирован? " << (isSorted(copy, N) ? "да" : "нет") << "\n";
+
+    delete[] arr;
+    delete[] copy;
+    return 0;
+}
